@@ -434,7 +434,10 @@ function App() {
             aria-label={`Switch to ${themeMode === "dark" ? "light" : "dark"} mode`}
             title={`Switch to ${themeMode === "dark" ? "light" : "dark"} mode`}
           >
-            <span aria-hidden="true">{themeMode === "dark" ? "☼" : "☾"}</span>
+            <span
+              className={`theme-icon ${themeMode === "dark" ? "theme-icon-sun" : "theme-icon-moon"}`}
+              aria-hidden="true"
+            />
           </button>
           <span className={`mode-badge ${session ? "is-connected" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
@@ -765,7 +768,7 @@ function ConnectionModal({
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div className="modal connection-modal" role="dialog" aria-modal="true" aria-labelledby="connection-title">
-        <div className="modal-topline"><span className="modal-kicker">Your setup</span><button className="close-button" type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="modal-topline"><span className="modal-kicker">Your setup</span><button className="close-button" type="button" onClick={onClose} aria-label="Close"><span aria-hidden="true">×</span></button></div>
         <h2 id="connection-title">Bring your <em>model.</em></h2>
         <p className="modal-copy">Enter your provider details first. You can choose a model beside the chat input after the connection is checked.</p>
 
@@ -802,7 +805,7 @@ function HistoryModal({
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div className="modal history-modal" role="dialog" aria-modal="true" aria-labelledby="history-title">
-        <div className="modal-topline"><span className="modal-kicker">Saved locally</span><button className="close-button" type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="modal-topline"><span className="modal-kicker">Saved locally</span><button className="close-button" type="button" onClick={onClose} aria-label="Close"><span aria-hidden="true">×</span></button></div>
         <div className="history-title-row"><div><h2 id="history-title">Your little archive.</h2><p className="modal-copy">Drafts you have analyzed are saved in this browser.</p></div><span className="history-count">{history.length} {history.length === 1 ? "item" : "items"}</span></div>
         {history.length === 0 ? (
           <div className="history-empty"><span className="empty-orb">↺</span><strong>No history yet.</strong><p>Your first analyzed draft will appear here.</p></div>
@@ -815,7 +818,7 @@ function HistoryModal({
                     <span className="history-preview">{item.input}</span>
                     <span className="history-meta">{new Date(item.result.createdAt).toLocaleString("en-US", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} <span>·</span> {item.result.sentences.length} {item.result.sentences.length === 1 ? "sentence" : "sentences"}</span>
                   </button>
-                  <button className="history-delete" type="button" onClick={() => onDelete(item.id)} aria-label="Delete history item">×</button>
+                  <button className="history-delete" type="button" onClick={() => onDelete(item.id)} aria-label="Delete history item"><span aria-hidden="true">×</span></button>
                 </div>
               ))}
             </div>
