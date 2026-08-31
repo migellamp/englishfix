@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">EnglishFix logo</title>
+  <desc id="desc">A transparent chat-bubble outline with a warm coral dot in the center.</desc>
+  <path d="M47 22H81Q106 22 106 47V81Q106 106 81 106H22V47Q22 22 47 22Z" fill="none" stroke="#e96850" stroke-width="8" stroke-linejoin="round" transform="rotate(-7 64 64)"/>
+  <circle cx="64" cy="64" r="13" fill="#e96850"/>
+</svg>

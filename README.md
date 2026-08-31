@@ -1,0 +1,181 @@
+<div align="center">
+  <img src="./assets/englishfix-logo.svg?v=chat-bubble" alt="EnglishFix logo" width="96" />
+
+  <h1>EnglishFix</h1>
+
+  <p><strong>Make it sound like you.</strong></p>
+
+  <p>An AI-assisted English writing coach that corrects grammar, clarifies meaning, and preserves your voice.</p>
+
+  <p>
+    <img src="https://img.shields.io/badge/status-experimental-2563eb?style=flat-square" alt="Experimental" />
+    <img src="https://img.shields.io/badge/React-18-17243a?style=flat-square&logo=react&logoColor=61DAFB" alt="React 18" />
+    <img src="https://img.shields.io/badge/TypeScript-5.7-17243a?style=flat-square&logo=typescript&logoColor=3178C6" alt="TypeScript 5.7" />
+    <img src="https://img.shields.io/badge/Vite-6-17243a?style=flat-square&logo=vite&logoColor=646CFF" alt="Vite 6" />
+  </p>
+</div>
+
+## Overview
+
+EnglishFix is a local-first web application that helps people learn from every English correction. Paste or write a draft, select an analysis mode, and connect your own AI provider through BYOK (Bring Your Own Key).
+
+Each analysis includes:
+
+- the original text with words and phrases that need attention;
+- a corrected version;
+- explanations and replacement suggestions for individual tokens;
+- contextual translation in the language you select;
+- controls to apply one suggestion, apply all suggestions, or copy the final result.
+
+## Analysis modes
+
+| Mode | Best for | What it does |
+| --- | --- | --- |
+| **Fix grammar & vocabulary** | Everyday corrections | Fixes important spelling, grammar, word choice, and clarity issues without changing the writer's style or making the vocabulary needlessly complex. |
+| **Natural rephrase** | More natural writing | Rephrases stiff, overly literal, or uncommon wording into fluent English while retaining the original meaning, facts, and tone. |
+| **IELTS high band** | IELTS Writing preparation | Improves accuracy, lexical resource, grammatical range, cohesion, and academic style toward formal Band 8–9 writing without changing the intended message. |
+
+## Translation languages
+
+The language selector in the navigation bar includes clear country-flag icons and remembers your latest choice in the browser. EnglishFix currently supports:
+
+- Indonesian and Malay;
+- Thai and Vietnamese;
+- Simplified Chinese, Japanese, and Korean;
+- Spanish, French, German, and Portuguese;
+- Arabic.
+
+The selected language is also saved with each analysis result. Reopening an item from the history automatically restores the language used when that result was created.
+
+## Themes
+
+Use the moon/sun control in the navigation bar to switch between the light and high-contrast dark themes. The preference is stored in `localStorage` and follows the system preference the first time the application is opened.
+
+## How it works
+
+```text
+User draft
+     │
+     ├── select analysis mode + model
+     │
+     ▼
+EnglishFix browser ── GET /models ──► OpenAI-compatible provider
+     │                               │
+     │                               └── POST /chat/completions
+     │                                      with JSON instructions
+     ▼
+JSON response parser
+     │
+     ├── token annotations + correction reasons
+     ├── corrected version
+     ├── selected-language translation
+     └── local history
+```
+
+1. The user enters a draft and chooses an analysis mode.
+2. When a connection is created, the browser calls `GET /models` to validate the provider and load available models.
+3. When analysis starts, the browser sends `POST /chat/completions` directly to the selected provider.
+4. The model returns structured JSON containing sentences, original tokens, error states, suggestions, explanations, and translations.
+5. EnglishFix parses the response and renders it as an interactive result.
+6. Applied suggestions rebuild the corrected text in the browser without requesting another analysis.
+
+## Privacy and BYOK
+
+EnglishFix does not provide an API key. You provide your own:
+
+- **Base URL**, such as `https://api.openai.com/v1`;
+- provider **API key**;
+- an available provider model.
+
+Analysis requests, drafts, API keys, and provider responses are sent directly from the browser to the selected provider. The EnglishFix worker does not receive or store them. History, the latest mode, translation language, theme, and connection session are stored in browser `localStorage`. History is capped at the latest 50 items.
+
+> **Important:** `localStorage` is not a secret store. An untrusted deployment, browser extension, injected script, or shared computer may expose an API key. Use only deployments and devices you trust, review the source before entering a key, and select **Disconnect** when you finish.
+
+## Provider requirements
+
+Your provider must:
+
+- expose an OpenAI-compatible `GET /models` endpoint;
+- expose `POST /chat/completions`;
+- accept an `Authorization: Bearer <API_KEY>` header;
+- allow browser requests through CORS;
+- return a model list with `data[].id`;
+- support JSON output, or respond when `response_format` is unavailable.
+
+## Run locally
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/USERNAME/englishfix.git
+cd englishfix
+npm install
+```
+
+### 2. Start the development server
+
+```bash
+npm run dev
+```
+
+Open the local URL shown by Vite, select **Connect LLM**, and enter your provider details. The current BYOK flow does not require an API key in `.env`.
+
+### 3. Create a production build
+
+```bash
+npm run build
+npm run preview
+```
+
+The build is generated in `dist/`. `server/worker.ts` is a hosting fallback only; it neither handles AI requests nor stores credentials.
+
+## Available commands
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Starts the Vite development server. |
+| `npm run build` | Type-checks TypeScript, creates the production build, and builds the worker. |
+| `npm run preview` | Runs a preview of the production output. |
+
+## Project structure
+
+```text
+.
+├── src/
+│   ├── App.tsx             # Main UI, editor, results, dialogs, and history
+│   ├── types.ts            # Analysis and connection types
+│   ├── lib/
+│   │   ├── analysis.ts     # Text rebuilding and suggestion application
+│   │   ├── languages.ts    # Translation-language metadata
+│   │   ├── llmClient.ts    # Provider integration and JSON response parsing
+│   │   ├── modes.ts        # The three analysis-mode definitions
+│   │   └── storage.ts      # localStorage persistence for session, mode, and history
+│   └── styles.css          # Visual identity and responsive layout
+├── server/worker.ts        # Fallback worker with no AI route
+├── assets/                 # Branding assets and documentation images
+├── index.html              # App metadata and entry point
+└── vite.config.ts          # Vite configuration
+```
+
+## Contributing
+
+Contributions are welcome. For substantial changes, please open an issue first so the direction can be discussed.
+
+```bash
+git checkout -b feat/change-name
+npm install
+npm run build
+git add .
+git commit -m "feat: describe the change"
+git push origin feat/change-name
+```
+
+When opening a pull request, include a change summary, verification steps, and notes for any changes to the provider-response format or browser-stored data.
+
+## Project status
+
+EnglishFix is experimental. LLM response formats, provider support, and the user experience may change. Always review corrections before using them in emails, formal documents, or submitted work.
+
+## License
+
+No license has been selected yet. Add a `LICENSE` file before distributing EnglishFix as open source.
