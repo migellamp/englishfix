@@ -81,7 +81,7 @@ export function ConnectionModal({ onClose, onConnected }: ConnectionModalProps) 
           </button>
           <p className="verify-note">EnglishFix checks <code>GET /models</code> directly, then makes the model picker available beside the chat input. Your provider must allow browser requests (CORS).</p>
         </form>
-        <p className="modal-footnote"><Icon>⌁</Icon> Disconnect removes the saved key from this browser. Never use a personal key on an untrusted device.</p>
+        <p className="modal-footnote"><Icon>⌁</Icon><span>Disconnect removes the saved key from this browser. Never use a personal key on an untrusted device.</span></p>
       </div>
     </div>
   );

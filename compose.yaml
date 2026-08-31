@@ -1,0 +1,16 @@
+services:
+  englishfix:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: englishfix:local
+    container_name: englishfix
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

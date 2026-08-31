@@ -1142,3 +1142,113 @@ kbd { color: var(--ink); font-size: 10px; }
   .nav-button { width: 38px; min-width: 38px; height: 38px; }
   .connection-button { min-height: 38px; padding-inline: 7px; font-size: 10px; }
 }
+
+/* Dark connection modal: no bright outer border and no horizontal overflow. */
+.app-shell.theme-dark .connection-modal {
+  width: min(100%, 500px);
+  max-width: 100%;
+  overflow-x: hidden;
+  border: 0 !important;
+  background: #211e1b;
+  color: #fff8ef;
+}
+
+.app-shell.theme-dark .connection-modal .modal-copy,
+.app-shell.theme-dark .connection-modal .connection-panel h3,
+.app-shell.theme-dark .connection-modal .field-group label {
+  color: #fff8ef;
+}
+
+.app-shell.theme-dark .connection-modal .connection-panel {
+  min-width: 0;
+  overflow: hidden;
+  border-color: #443d36;
+  background: #292520;
+}
+
+.app-shell.theme-dark .connection-modal .connection-panel p,
+.app-shell.theme-dark .connection-modal .field-group span,
+.app-shell.theme-dark .connection-modal .verify-note,
+.app-shell.theme-dark .connection-modal .modal-footnote {
+  color: #c0b5aa;
+}
+
+.connection-modal .modal-copy,
+.connection-modal .connection-panel p,
+.connection-modal .field-group span,
+.connection-modal .verify-note,
+.connection-modal .modal-footnote > span {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+}
+
+.connection-modal .modal-footnote > span { flex: 1 1 auto; }
+
+/* Analysis action states stay visually stable and accurately reflect connectivity. */
+.button {
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+
+.button-accent:hover:not(:disabled),
+.app-shell.theme-dark .button-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent) 0%, #d94b38 100%);
+  filter: brightness(.94) saturate(1.06);
+}
+
+.app-shell.theme-dark .button-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff9a82 0%, #ff7259 100%);
+}
+
+.button-accent.is-disconnected,
+.app-shell.theme-dark .button-accent.is-disconnected {
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--surface-hover);
+  box-shadow: none;
+  filter: none;
+  opacity: .72;
+  cursor: not-allowed;
+}
+
+/* Keep history rows clear of the scroll edge and hover clipping. */
+.history-list {
+  max-height: min(390px, 42vh);
+  padding: 4px 8px 9px 4px;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.history-modal > .button-danger {
+  width: 100%;
+  min-height: 44px;
+}
+
+.button-danger:hover:not(:disabled) {
+  color: #a92f35;
+  border-color: #e7b9b9;
+  background: #ffebeb;
+}
+
+.app-shell.theme-dark .button-danger {
+  color: #ffb9bd;
+  border-color: #70434b;
+  background: #342428;
+}
+
+.app-shell.theme-dark .button-danger:hover:not(:disabled) {
+  color: #ffe0e2;
+  border-color: #965660;
+  background: #482b31;
+}
+
+@media (max-width: 430px) {
+  .history-list {
+    max-height: min(350px, 38vh);
+    padding-right: 5px;
+  }
+}

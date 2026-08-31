@@ -116,6 +116,37 @@ Your provider must:
 
 ## Run locally
 
+### Docker (recommended)
+
+Build and start EnglishFix in the background:
+
+```bash
+docker compose up -d --build
+```
+
+Open `http://localhost:8080`. The container restarts automatically unless you stop it manually.
+
+To use a different host port, set `APP_PORT` before starting Compose. For example:
+
+```bash
+APP_PORT=3000 docker compose up -d --build
+```
+
+On PowerShell:
+
+```powershell
+$env:APP_PORT=3000
+docker compose up -d --build
+```
+
+Stop the application with:
+
+```bash
+docker compose down
+```
+
+### Without Docker
+
 ### 1. Clone and install
 
 ```bash

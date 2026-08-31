@@ -28,6 +28,9 @@ export function DraftEditor({
   onAnalyze,
 }: DraftEditorProps) {
   const activeMode = getAnalysisMode(analysisMode);
+  const isConnectionReady = Boolean(
+    session?.baseUrl.trim() && session.apiKey.trim() && session.modelId.trim(),
+  );
 
   return (
     <section className="editor-card" aria-labelledby="editor-title">
@@ -81,7 +84,13 @@ export function DraftEditor({
             </div>
           )}
 
-          <button className="button button-accent" type="button" onClick={onAnalyze} disabled={isAnalyzing}>
+          <button
+            className={`button button-accent${!isConnectionReady ? " is-disconnected" : ""}`}
+            type="button"
+            onClick={onAnalyze}
+            disabled={isAnalyzing || !isConnectionReady}
+            title={!isConnectionReady ? "Connect an LLM to analyze your draft" : undefined}
+          >
             {isAnalyzing ? (
               <><span className="spinner" /> Analyzing...</>
             ) : (
