@@ -49,7 +49,7 @@ The selected language is also saved with each analysis result. Reopening an item
 
 ## Themes
 
-Use the moon/sun control in the navigation bar to switch between the light and high-contrast dark themes. The preference is stored in `localStorage` and follows the system preference the first time the application is opened.
+Use the SVG moon/sun control in the shared navigation bar to switch between the light and high-contrast dark themes. The preference is stored in `localStorage` and follows the system preference the first time the application is opened.
 
 ## How it works
 
@@ -78,6 +78,18 @@ JSON response parser
 4. The model returns structured JSON containing sentences, original tokens, error states, suggestions, explanations, and translations.
 5. EnglishFix parses the response and renders it as an interactive result.
 6. Applied suggestions rebuild the corrected text in the browser without requesting another analysis.
+
+## UI architecture
+
+The frontend follows a component-based structure. `App.tsx` owns application state and coordinates the main workflows, while rendering is delegated to focused components.
+
+- `SiteHeader` is the single navigation component used by the initial editor, analysis results, and loaded history views. Language, theme, connection, history, and new-chat controls therefore stay consistent across the application.
+- Editor components render the introduction, draft input, analysis-mode selector, model selector, and empty state.
+- Result components render annotations, suggestions, corrected text, and contextual translations.
+- Modal components isolate connection setup and locally stored history.
+- UI primitives provide reusable select, icon, and theme-icon implementations.
+
+View state is represented by classes such as `initial-view`, `results-view`, and `history-view`. These classes only adjust page-level layout; they do not replace or restyle the shared navbar.
 
 ## Privacy and BYOK
 
@@ -142,19 +154,44 @@ The build is generated in `dist/`. `server/worker.ts` is a hosting fallback only
 ```text
 .
 ├── src/
-│   ├── App.tsx             # Main UI, editor, results, dialogs, and history
-│   ├── types.ts            # Analysis and connection types
+│   ├── App.tsx                         # Application state and workflow orchestration
+│   ├── main.tsx                        # React entry point and global stylesheet import
+│   ├── types.ts                        # Analysis, history, theme, and connection types
+│   ├── components/
+│   │   ├── editor/
+│   │   │   ├── DraftEditor.tsx         # Draft input, analysis mode, model, and submit action
+│   │   │   ├── EmptyState.tsx          # Initial workflow guidance
+│   │   │   └── Hero.tsx                # Introductory page content
+│   │   ├── layout/
+│   │   │   ├── SiteFooter.tsx          # Shared application footer
+│   │   │   └── SiteHeader.tsx          # Shared navbar for every application view
+│   │   ├── modals/
+│   │   │   ├── ConnectionModal.tsx     # BYOK provider connection form
+│   │   │   └── HistoryModal.tsx        # Local history browser and management actions
+│   │   ├── results/
+│   │   │   └── AnalysisResults.tsx     # Annotated, corrected, and translated results
+│   │   └── ui/
+│   │       ├── CustomSelect.tsx         # Accessible reusable custom select
+│   │       ├── Icon.tsx                 # Inline icon wrapper
+│   │       └── ThemeIcon.tsx            # SVG light/dark theme icons
 │   ├── lib/
-│   │   ├── analysis.ts     # Text rebuilding and suggestion application
-│   │   ├── languages.ts    # Translation-language metadata
-│   │   ├── llmClient.ts    # Provider integration and JSON response parsing
-│   │   ├── modes.ts        # The three analysis-mode definitions
-│   │   └── storage.ts      # localStorage persistence for session, mode, and history
-│   └── styles.css          # Visual identity and responsive layout
-├── server/worker.ts        # Fallback worker with no AI route
-├── assets/                 # Branding assets and documentation images
-├── index.html              # App metadata and entry point
-└── vite.config.ts          # Vite configuration
+│   │   ├── analysis.ts                 # Text rebuilding and suggestion application
+│   │   ├── languages.ts                # Translation-language metadata
+│   │   ├── llmClient.ts                # Provider integration and JSON response parsing
+│   │   ├── mockAnalyzer.ts             # Local mock analysis helper
+│   │   ├── modes.ts                    # Analysis-mode definitions
+│   │   └── storage.ts                  # localStorage persistence helpers
+│   └── styles.css                      # Themes, component styles, and responsive layout
+├── server/
+│   └── worker.ts                       # Hosting fallback with no AI route
+├── scripts/
+│   └── build-server.mjs                # Worker build script
+├── assets/
+│   └── englishfix-logo.svg             # EnglishFix brand mark
+├── index.html                          # HTML entry point and app metadata
+├── package.json                        # Dependencies and project commands
+├── tsconfig.json                       # TypeScript project configuration
+└── vite.config.ts                      # Vite configuration
 ```
 
 ## Contributing
