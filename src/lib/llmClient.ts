@@ -1,4 +1,13 @@
-import type { AnalysisMode, AnalysisResult, ConnectionSession, SentenceResult, TokenResult, TranslationLanguage } from "../types";
+import type {
+  AnalysisMode,
+  AnalysisResult,
+  ConnectionSession,
+  SentenceResult,
+  Suggestion,
+  SuggestionCategory,
+  TokenResult,
+  TranslationLanguage,
+} from "../types";
 import { getTranslationLanguage } from "./languages";
 
 type ProviderModel = { id?: string };
@@ -23,39 +32,62 @@ type ConnectionVerification = {
   modelId?: string;
 };
 
+type SourceSentence = {
+  index: number;
+  text: string;
+  tokens: string[];
+};
+
+type CompactIssue = {
+  tokenIndex?: unknown;
+  replacement?: unknown;
+  reason?: unknown;
+  category?: unknown;
+  translation?: unknown;
+  translationId?: unknown;
+};
+
+type CompactSentence = {
+  index?: unknown;
+  corrected?: unknown;
+  translation?: unknown;
+  translationId?: unknown;
+  issues?: unknown;
+  tokens?: unknown;
+  original?: unknown;
+};
+
 function analysisSystemPrompt(targetLanguage: string): string {
-  return `You are a kind, precise English writing coach. Return only valid JSON, with no markdown or commentary, using this exact shape:
+  return `You are a kind, precise English writing coach. Return only valid JSON without markdown, using this compact shape:
 {
-  "originalText": "the input text",
-  "correctedText": "the complete corrected text",
+  "correctedText": "complete corrected text",
   "sentences": [
     {
-      "original": "original sentence",
-      "corrected": "corrected sentence",
-      "translationId": "natural ${targetLanguage} translation",
-      "tokens": [
+      "index": 0,
+      "corrected": "complete corrected sentence",
+      "translation": "natural ${targetLanguage} translation",
+      "issues": [
         {
-          "text": "the exact original token, including attached punctuation",
-          "status": "correct or error",
-          "translationId": "optional ${targetLanguage} meaning",
-          "suggestions": [
-            { "replacement": "replacement", "reason": "short explanation", "category": "spelling, grammar, or naturalness" }
-          ]
+          "tokenIndex": 2,
+          "replacement": "replacement",
+          "reason": "short explanation",
+          "category": "spelling, grammar, or naturalness",
+          "translation": "optional ${targetLanguage} meaning"
         }
       ]
     }
   ]
 }
-Preserve the writer's voice. Mark only meaningful spelling, grammar, or naturalness issues. Keep every original token exactly in sentence.tokens[].text so the inline editor can render it. For every error, provide at least one concise suggestion. If the draft is already correct, return no errors and keep it unchanged. Return a natural ${targetLanguage} translation for every sentence and every flagged token.`;
+The user supplies pre-tokenized sentences. Sentence and token indices are zero-based. Include every sentence exactly once and only list tokens that have meaningful issues. Do not repeat original sentences, original tokens, correct tokens, status fields, or empty issues. The client reconstructs those locally. Give at most one best concise replacement per issue and keep it to one token when possible. If the text is correct, keep it unchanged and return an empty issues array. Preserve the writer's voice and return a natural ${targetLanguage} translation for every sentence.`;
 }
 
 const modeInstructions: Record<AnalysisMode, string> = {
   fix: `Analysis mode: Fix grammar & vocabulary.
-Focus on objective spelling, grammar, word-choice, and clarity mistakes. Keep correct and natural sentences unchanged. Do not upgrade vocabulary just to sound more advanced. Preserve the writer's original voice, sentence structure, and level of formality. Token suggestions should be concise single-token replacements whenever possible.`,
+Focus on objective spelling, grammar, word-choice, and clarity mistakes. Keep correct and natural sentences unchanged. Do not upgrade vocabulary just to sound more advanced. Preserve the writer's original voice, sentence structure, and level of formality.`,
   natural: `Analysis mode: Natural rephrase.
-Make the writing sound fluent and commonly used by a natural English speaker. Improve awkward, uncommon, overly literal, or stilted phrasing even when it is grammatically correct. Preserve the exact meaning, facts, intent, and approximate tone; do not add information. Keep sentence boundaries aligned with the input when possible. Use the correctedText and sentence.corrected fields for the full natural rewrite. Mark only meaningful changes in the original tokens and keep token suggestions concise; do not flag every stylistic preference.`,
+Make the writing sound fluent and commonly used by a natural English speaker. Improve awkward, uncommon, overly literal, or stilted phrasing even when it is grammatically correct. Preserve the exact meaning, facts, intent, and approximate tone; do not add information. Keep sentence boundaries aligned with the input when possible.`,
   ielts: `Analysis mode: IELTS high band.
-Rewrite the draft as precise, formal, high-level English suitable for IELTS writing around Band 8 or 9. Improve lexical resource, grammatical range and accuracy, cohesion, and academic phrasing. Use advanced vocabulary only when it is precise, natural, and appropriate; avoid obscure thesaurus words. Preserve all facts, numbers, names, and the writer's intended meaning. Keep sentence boundaries aligned with the input when possible. Use the correctedText and sentence.corrected fields for the full improved version, and mark only meaningful improvements in the original tokens.`,
+Rewrite the draft as precise, formal, high-level English suitable for IELTS writing around Band 8 or 9. Improve lexical resource, grammatical range and accuracy, cohesion, and academic phrasing. Use advanced vocabulary only when it is precise, natural, and appropriate. Preserve all facts, numbers, names, and intended meaning.`,
 };
 
 function promptForMode(mode: AnalysisMode, translationLanguage: TranslationLanguage): string {
@@ -92,6 +124,28 @@ async function providerFetch(input: string, init: RequestInit): Promise<Response
   }
 }
 
+const NON_TEXT_MODEL = /(embedding|moderation|whisper|transcri|tts|audio|image|dall-e|realtime|search|computer-use)/i;
+const FAST_MODEL = /(nano|mini|flash|haiku|small|fast|lite)/i;
+const SLOW_MODEL = /(pro|opus|large|max|reasoning)/i;
+
+function analysisModelRank(modelId: string): number {
+  if (NON_TEXT_MODEL.test(modelId)) return 1_000;
+  if (/gpt-5(?:\.\d+)?-nano/i.test(modelId)) return 0;
+  if (/gpt-5(?:\.\d+)?-mini/i.test(modelId)) return 1;
+  if (/gpt-4\.1-nano/i.test(modelId)) return 2;
+  if (/gpt-4\.1-mini|gpt-4o-mini/i.test(modelId)) return 3;
+  if (FAST_MODEL.test(modelId)) return 10;
+  if (SLOW_MODEL.test(modelId)) return 80;
+  return 40;
+}
+
+function sortModelsForAnalysis(models: string[]): string[] {
+  return models
+    .map((model, index) => ({ model, index, rank: analysisModelRank(model) }))
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map(({ model }) => model);
+}
+
 export async function verifyProviderConnection(
   connection: ConnectionVerification,
 ): Promise<{ modelId: string; availableModels: string[] }> {
@@ -101,9 +155,9 @@ export async function verifyProviderConnection(
   const payload = await readJson<ProviderModelsPayload>(response);
   if (!response.ok) throw providerError(payload, `The provider returned HTTP ${response.status} while listing models.`);
 
-  const availableModels = payload?.data
+  const availableModels = sortModelsForAnalysis(payload?.data
     ?.map((model) => model.id?.trim())
-    .filter((id): id is string => Boolean(id)) ?? [];
+    .filter((id): id is string => Boolean(id)) ?? []);
   const requestedModel = connection.modelId?.trim() ?? "";
   const modelId = availableModels.includes(requestedModel) ? requestedModel : availableModels[0] || requestedModel;
   if (!modelId) throw new Error("The provider did not return any model ids. Enter a model name manually.");
@@ -113,6 +167,70 @@ export async function verifyProviderConnection(
 function contentText(content: ChatMessageContent | undefined): string {
   if (typeof content === "string") return content;
   return content?.map((part) => part.text || part.content || "").join("") ?? "";
+}
+
+function sourceSentences(text: string): SourceSentence[] {
+  const parts = text.match(/[^.!?]+[.!?]*/g)?.map((part) => part.trim()).filter(Boolean) ?? [];
+  const sentences = parts.length > 0 ? parts : [text];
+  return sentences.map((sentence, index) => ({
+    index,
+    text: sentence,
+    tokens: sentence.match(/\S+/g) ?? [],
+  }));
+}
+
+function suggestionCategory(value: unknown): SuggestionCategory {
+  return value === "spelling" || value === "naturalness" ? value : "grammar";
+}
+
+function compactTokens(source: SourceSentence, rawIssues: unknown): TokenResult[] {
+  const tokens: TokenResult[] = source.tokens.map((text) => ({ text, status: "correct" }));
+  if (!Array.isArray(rawIssues)) return tokens;
+
+  for (const rawIssue of rawIssues) {
+    const issue = rawIssue as CompactIssue;
+    const tokenIndex = Number(issue.tokenIndex);
+    const replacement = typeof issue.replacement === "string" ? issue.replacement.trim() : "";
+    if (!Number.isInteger(tokenIndex) || tokenIndex < 0 || tokenIndex >= tokens.length || !replacement) continue;
+
+    const suggestion: Suggestion = {
+      replacement,
+      reason: typeof issue.reason === "string" && issue.reason.trim()
+        ? issue.reason.trim()
+        : "This change makes the sentence more accurate and natural.",
+      category: suggestionCategory(issue.category),
+    };
+    const translation = typeof issue.translation === "string"
+      ? issue.translation
+      : typeof issue.translationId === "string" ? issue.translationId : undefined;
+    tokens[tokenIndex] = {
+      ...tokens[tokenIndex],
+      status: "error",
+      suggestions: [suggestion],
+      ...(translation ? { translationId: translation } : {}),
+    };
+  }
+  return tokens;
+}
+
+function legacySentence(value: CompactSentence): SentenceResult {
+  const tokens: TokenResult[] = Array.isArray(value.tokens)
+    ? value.tokens.map((token) => {
+      const item = token as { text?: unknown; status?: unknown; translationId?: unknown; suggestions?: unknown };
+      return {
+        text: String(item.text ?? ""),
+        status: item.status === "error" ? "error" : "correct",
+        ...(typeof item.translationId === "string" ? { translationId: item.translationId } : {}),
+        ...(Array.isArray(item.suggestions) ? { suggestions: item.suggestions as Suggestion[] } : {}),
+      };
+    })
+    : [];
+  return {
+    original: String(value.original ?? ""),
+    corrected: String(value.corrected ?? value.original ?? ""),
+    translationId: String(value.translationId ?? value.translation ?? ""),
+    tokens,
+  };
 }
 
 function parseAnalysis(content: string, originalText: string): AnalysisResult {
@@ -126,42 +244,42 @@ function parseAnalysis(content: string, originalText: string): AnalysisResult {
     correctedText?: unknown;
     sentences?: unknown;
   };
-  if (typeof parsed.correctedText !== "string" || !Array.isArray(parsed.sentences)) {
-    throw new Error("The provider returned an incomplete analysis.");
-  }
+  if (!Array.isArray(parsed.sentences)) throw new Error("The provider returned an incomplete analysis.");
 
-  const sentences: SentenceResult[] = parsed.sentences.map((sentence) => {
-    const value = sentence as { original?: unknown; corrected?: unknown; translationId?: unknown; tokens?: unknown };
-    const tokens: TokenResult[] = Array.isArray(value.tokens)
-      ? value.tokens.map((token) => {
-        const item = token as { text?: unknown; status?: unknown; translationId?: unknown; suggestions?: unknown };
-        return {
-          text: String(item.text ?? ""),
-          status: item.status === "error" ? "error" : "correct",
-          ...(typeof item.translationId === "string" ? { translationId: item.translationId } : {}),
-          ...(Array.isArray(item.suggestions) ? { suggestions: item.suggestions } : {}),
-        };
-      })
-      : [];
-    return {
-      original: String(value.original ?? ""),
-      corrected: String(value.corrected ?? ""),
-      translationId: String(value.translationId ?? ""),
-      tokens,
-    };
-  });
+  const rawSentences = parsed.sentences as CompactSentence[];
+  const usesLegacyShape = rawSentences.some((sentence) => Array.isArray(sentence.tokens));
+  const sentences: SentenceResult[] = usesLegacyShape
+    ? rawSentences.map(legacySentence)
+    : sourceSentences(originalText).map((source) => {
+      const value = rawSentences.find((sentence) => Number(sentence.index) === source.index)
+        ?? rawSentences[source.index];
+      const translation = value && typeof value.translation === "string"
+        ? value.translation
+        : value && typeof value.translationId === "string" ? value.translationId : "";
+      return {
+        original: source.text,
+        corrected: value && typeof value.corrected === "string" ? value.corrected : source.text,
+        translationId: translation,
+        tokens: compactTokens(source, value?.issues),
+      };
+    });
+  const correctedText = typeof parsed.correctedText === "string"
+    ? parsed.correctedText
+    : sentences.map((sentence) => sentence.corrected).join(" ");
 
-  return {
-    originalText,
-    correctedText: parsed.correctedText,
-    sentences,
-    createdAt: Date.now(),
-  };
+  return { originalText, correctedText, sentences, createdAt: Date.now() };
 }
 
-function supportsJsonMode(payload: ChatCompletionPayload | null): boolean {
+function unsupportedOptionalParameter(payload: ChatCompletionPayload | null): boolean {
   const message = providerError(payload, "").message.toLowerCase();
-  return message.includes("response_format") || message.includes("json_object") || message.includes("structured output");
+  return message.includes("response_format")
+    || message.includes("json_object")
+    || message.includes("structured output")
+    || message.includes("reasoning_effort");
+}
+
+function requestSentences(text: string): Array<{ index: number; tokens: string[] }> {
+  return sourceSentences(text).map(({ index, tokens }) => ({ index, tokens }));
 }
 
 export async function analyzeWithProvider(
@@ -174,14 +292,24 @@ export async function analyzeWithProvider(
     throw new Error("The BYOK connection is incomplete.");
   }
 
+  const usesReasoningModel = /^(?:gpt-5|o[134](?:-|$))/i.test(session.modelId);
   const body = {
     model: session.modelId,
     temperature: 0,
     messages: [
       { role: "system", content: promptForMode(mode, translationLanguage) },
-      { role: "user", content: JSON.stringify({ text, sourceLanguage: "en", targetLanguage: translationLanguage, analysisMode: mode }) },
+      {
+        role: "user",
+        content: JSON.stringify({
+          sourceLanguage: "en",
+          targetLanguage: translationLanguage,
+          analysisMode: mode,
+          sentences: requestSentences(text),
+        }),
+      },
     ],
     response_format: { type: "json_object" },
+    ...(usesReasoningModel ? { reasoning_effort: "low" } : {}),
   };
   let response = await providerFetch(providerUrl(session.baseUrl, "chat/completions"), {
     method: "POST",
@@ -190,8 +318,12 @@ export async function analyzeWithProvider(
   });
   let payload = await readJson<ChatCompletionPayload>(response);
 
-  if (!response.ok && response.status === 400 && supportsJsonMode(payload)) {
-    const { response_format: _responseFormat, ...fallbackBody } = body;
+  if (!response.ok && response.status === 400 && unsupportedOptionalParameter(payload)) {
+    const {
+      response_format: _responseFormat,
+      reasoning_effort: _reasoningEffort,
+      ...fallbackBody
+    } = body as typeof body & { reasoning_effort?: string };
     response = await providerFetch(providerUrl(session.baseUrl, "chat/completions"), {
       method: "POST",
       headers: providerHeaders(session.apiKey),
