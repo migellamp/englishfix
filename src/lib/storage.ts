@@ -50,7 +50,7 @@ export function saveTranslationLanguage(language: TranslationLanguage): void {
 export function readThemeMode(): ThemeMode {
   const value = localStorage.getItem(THEME_KEY);
   if (value === "light" || value === "dark") return value;
-  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+  return "light";
 }
 
 export function saveThemeMode(theme: ThemeMode): void {

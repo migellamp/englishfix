@@ -3,6 +3,8 @@ import type { ConnectionSession, ThemeMode, TranslationLanguage } from "../../ty
 import { CustomSelect } from "../ui/CustomSelect";
 import { ThemeIcon } from "../ui/ThemeIcon";
 
+const brandLogoUrl = new URL("../../../assets/englishfix-logo.svg", import.meta.url).href;
+
 type SiteHeaderProps = {
   session: ConnectionSession | null;
   themeMode: ThemeMode;
@@ -50,7 +52,7 @@ export function SiteHeader({
   return (
     <header className="site-header">
       <a className="brand" href="/" aria-label="EnglishFix home">
-        <img className="brand-mark" src="/assets/englishfix-logo.svg" alt="" aria-hidden="true" />
+        <img className="brand-mark" src={brandLogoUrl} alt="" aria-hidden="true" />
         <span className="brand-name">english<span>fix</span></span>
       </a>
 
