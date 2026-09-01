@@ -45,6 +45,7 @@ function App() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [streamedResponse, setStreamedResponse] = useState("");
   const [popover, setPopover] = useState<PopoverState>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [session, setSession] = useState<ConnectionSession | null>(() => readSession());
@@ -101,12 +102,14 @@ function App() {
     setIsHistoryPreview(false);
     setPopover(null);
     setIsAnalyzing(true);
+    setStreamedResponse("");
     try {
       const nextResult = await analyzeWithProvider(
         input.trim(),
         session,
         analysisMode,
         translationLanguage,
+        setStreamedResponse,
       );
       setResult(nextResult);
       addHistory(input.trim(), nextResult);
@@ -121,6 +124,7 @@ function App() {
       );
     } finally {
       setIsAnalyzing(false);
+      setStreamedResponse("");
     }
   };
 
@@ -284,7 +288,7 @@ function App() {
   const viewClass = isHistoryPreview ? "history-view" : result ? "results-view" : "initial-view";
 
   return (
-    <div className={`app-shell theme-${themeMode} ${viewClass}`}>
+    <div className={`app-shell theme-${themeMode} ${viewClass}${isAnalyzing ? " is-analyzing" : ""}`}>
       <SiteHeader
         session={session}
         themeMode={themeMode}
@@ -307,6 +311,7 @@ function App() {
               session={session}
               analysisMode={analysisMode}
               isAnalyzing={isAnalyzing}
+              streamedResponse={streamedResponse}
               onInputChange={setInput}
               onEditorKeyDown={onEditorKeyDown}
               onAnalysisModeChange={changeAnalysisMode}

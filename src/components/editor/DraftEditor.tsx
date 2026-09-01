@@ -9,6 +9,7 @@ type DraftEditorProps = {
   session: ConnectionSession | null;
   analysisMode: AnalysisMode;
   isAnalyzing: boolean;
+  streamedResponse: string;
   onInputChange: (input: string) => void;
   onEditorKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onAnalysisModeChange: (mode: string) => void;
@@ -21,6 +22,7 @@ export function DraftEditor({
   session,
   analysisMode,
   isAnalyzing,
+  streamedResponse,
   onInputChange,
   onEditorKeyDown,
   onAnalysisModeChange,
@@ -52,6 +54,8 @@ export function DraftEditor({
         rows={5}
         disabled={isAnalyzing}
       />
+
+      {isAnalyzing && <StreamingResponse content={streamedResponse} />}
 
       <div className="editor-footer">
         <span className="editor-hint"><kbd>Enter</kbd> to analyze <span>·</span> <kbd>Shift + Enter</kbd> for a new line</span>
@@ -100,5 +104,47 @@ export function DraftEditor({
         </div>
       </div>
     </section>
+  );
+}
+
+function correctedTextPreview(content: string): string {
+  const match = /"correctedText"\s*:\s*"/.exec(content);
+  if (!match) return "";
+
+  let preview = "";
+  let escaped = false;
+  for (const character of content.slice(match.index + match[0].length)) {
+    if (!escaped && character === '"') break;
+    if (!escaped && character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (escaped) {
+      preview += character === "n" ? "\n" : character === "t" ? "\t" : character;
+      escaped = false;
+      continue;
+    }
+    preview += character;
+  }
+  return preview;
+}
+
+function StreamingResponse({ content }: { content: string }) {
+  const preview = correctedTextPreview(content);
+  const hasStarted = content.length > 0;
+
+  return (
+    <div className="stream-response">
+      <div className="stream-response-header">
+        <span className="stream-live" role="status" aria-live="polite"><i />{hasStarted ? "Response is streaming" : "Waiting for the model"}</span>
+        <span>{content.length.toLocaleString()} characters received</span>
+      </div>
+      <div className={`stream-response-preview${preview ? " has-content" : ""}`} aria-label="Live model response">
+        {preview || (hasStarted
+          ? "Receiving the structured analysis…"
+          : "The first words will appear here as soon as the model responds…")}
+        <span className="stream-caret" aria-hidden="true" />
+      </div>
+    </div>
   );
 }

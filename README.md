@@ -74,10 +74,11 @@ JSON response parser
 
 1. The user enters a draft and chooses an analysis mode.
 2. When a connection is created, the browser calls `GET /models` to validate the provider and load available models.
-3. When analysis starts, the browser sends `POST /chat/completions` directly to the selected provider.
-4. The model returns compact structured JSON containing corrected sentences, translations, and only the tokens that need attention.
-5. EnglishFix reconstructs correct tokens locally, then renders the response as an interactive result. This keeps AI output small and reduces response latency.
-6. Applied suggestions rebuild the corrected text in the browser without requesting another analysis.
+3. When analysis starts, the browser sends `POST /chat/completions` with streaming enabled directly to the selected provider.
+4. The browser consumes the provider's SSE chunks immediately and shows a live corrected-text preview and received-character count while the model is working.
+5. The completed stream contains compact structured JSON with corrected sentences, translations, and only the tokens that need attention.
+6. EnglishFix reconstructs correct tokens locally, then renders the response as an interactive result. This keeps AI output small and reduces response latency.
+7. Applied suggestions rebuild the corrected text in the browser without requesting another analysis.
 
 ## UI architecture
 

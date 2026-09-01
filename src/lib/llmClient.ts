@@ -20,6 +20,7 @@ type ProviderModelsPayload = {
 type ChatCompletionPayload = {
   choices?: Array<{
     message?: { content?: string | Array<{ text?: string; content?: string }> };
+    delta?: { content?: string | Array<{ text?: string; content?: string }> };
   }>;
   error?: { message?: string } | string;
 };
@@ -278,6 +279,63 @@ function unsupportedOptionalParameter(payload: ChatCompletionPayload | null): bo
     || message.includes("reasoning_effort");
 }
 
+async function readStreamingCompletion(
+  response: Response,
+  onProgress?: (content: string) => void,
+): Promise<string> {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+  // A few OpenAI-compatible providers accept `stream: true` but still return a
+  // regular JSON completion. Keep those providers working as well.
+  if (!response.body || !contentType.includes("text/event-stream")) {
+    const payload = await readJson<ChatCompletionPayload>(response);
+    const content = contentText(payload?.choices?.[0]?.message?.content);
+    if (!content) throw providerError(payload, "The provider returned an empty analysis.");
+    onProgress?.(content);
+    return content;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+
+  const consumeEvent = (event: string) => {
+    const data = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart())
+      .join("\n")
+      .trim();
+    if (!data || data === "[DONE]") return;
+
+    let payload: ChatCompletionPayload;
+    try {
+      payload = JSON.parse(data) as ChatCompletionPayload;
+    } catch {
+      return;
+    }
+    if (payload.error) throw providerError(payload, "The provider stopped the response stream.");
+
+    const delta = contentText(payload.choices?.[0]?.delta?.content);
+    if (!delta) return;
+    content += delta;
+    onProgress?.(content);
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const events = buffer.split(/\r?\n\r?\n/);
+    buffer = events.pop() ?? "";
+    events.forEach(consumeEvent);
+    if (done) break;
+  }
+  if (buffer.trim()) consumeEvent(buffer);
+  if (!content) throw new Error("The provider returned an empty analysis stream.");
+  return content;
+}
+
 function requestSentences(text: string): Array<{ index: number; tokens: string[] }> {
   return sourceSentences(text).map(({ index, tokens }) => ({ index, tokens }));
 }
@@ -287,6 +345,7 @@ export async function analyzeWithProvider(
   session: ConnectionSession,
   mode: AnalysisMode = "fix",
   translationLanguage: TranslationLanguage = "id",
+  onProgress?: (content: string) => void,
 ): Promise<AnalysisResult> {
   if (!session.modelId || !session.baseUrl || !session.apiKey) {
     throw new Error("The BYOK connection is incomplete.");
@@ -309,6 +368,7 @@ export async function analyzeWithProvider(
       },
     ],
     response_format: { type: "json_object" },
+    stream: true,
     ...(usesReasoningModel ? { reasoning_effort: "low" } : {}),
   };
   let response = await providerFetch(providerUrl(session.baseUrl, "chat/completions"), {
@@ -316,7 +376,7 @@ export async function analyzeWithProvider(
     headers: providerHeaders(session.apiKey),
     body: JSON.stringify(body),
   });
-  let payload = await readJson<ChatCompletionPayload>(response);
+  let payload = response.ok ? null : await readJson<ChatCompletionPayload>(response);
 
   if (!response.ok && response.status === 400 && unsupportedOptionalParameter(payload)) {
     const {
@@ -329,11 +389,10 @@ export async function analyzeWithProvider(
       headers: providerHeaders(session.apiKey),
       body: JSON.stringify(fallbackBody),
     });
-    payload = await readJson<ChatCompletionPayload>(response);
+    payload = response.ok ? null : await readJson<ChatCompletionPayload>(response);
   }
 
   if (!response.ok) throw providerError(payload, `The provider returned HTTP ${response.status} while analyzing the draft.`);
-  const content = contentText(payload?.choices?.[0]?.message?.content);
-  if (!content) throw new Error("The provider returned an empty analysis.");
+  const content = await readStreamingCompletion(response, onProgress);
   return { ...parseAnalysis(content, text), mode, translationLanguage };
 }
